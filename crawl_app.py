@@ -1,15 +1,3 @@
-# crawler_app.py
-
-"""
-Website Crawler with Crawl4AI
-Refactored for tutorial video:
-  • Step 1: Setup and Imports
-  • Step 2: Configuration & Utilities
-  • Step 3: Crawling Logic
-  • Step 4: Streamlit UI
-"""
-
-# ─── Step 1: Setup and Imports ────────────────────────────────────────────────
 import asyncio
 import zipfile
 import re
@@ -19,23 +7,28 @@ from typing import List, Dict, Callable
 
 import streamlit as st
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy, DFSDeepCrawlStrategy, BestFirstCrawlingStrategy
+from crawl4ai.deep_crawling import (
+    BFSDeepCrawlStrategy,
+    DFSDeepCrawlStrategy,
+    BestFirstCrawlingStrategy,
+)
 from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
-from crawl4ai.deep_crawling import DFSDeepCrawlStrategy
 
-# Configure Streamlit app
+################################ Streamlit Page Config ################################
 st.set_page_config(
     page_title="Crawl4AI Website Crawler",
     page_icon=":mag_right:",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="wide",  # Use the full-width layout
+    initial_sidebar_state="expanded",  # Start with the sidebar open
 )
 
 
-# ─── Step 2: Configuration & Utilities ───────────────────────────────────────
+################################ Data & Strategy ################################
 @dataclass
 class CrawlerSettings:
+    """Holds all the user-configurable settings for the crawler."""
+
     url: str
     max_depth: int
     max_pages: int
@@ -46,73 +39,86 @@ class CrawlerSettings:
 
 
 def extract_title(markdown: str, url: str) -> str:
-    """Grab the first '# ' header or fallback to URL slug, then sanitize."""
+    """Extracts a title from markdown H1, falling back to the URL slug."""
+    # Find the first H1 header in the markdown content.
     match = re.search(r"^# (.+)", markdown, re.MULTILINE)
+    # Use H1 as title, otherwise fallback to the URL's last segment.
     title = match[1].strip() if match else url.rstrip("/").split("/")[-1] or "Untitled_Page"
+    # Sanitize the title to be a valid filename.
     return re.sub(r"[^a-zA-Z0-9_-]", "_", title)
 
 
 def build_strategy(settings: CrawlerSettings):
-    """Instantiate the selected deep‐crawl strategy."""
+    """Constructs the appropriate crawl strategy based on user settings."""
     if settings.strategy == "BFS":
         return BFSDeepCrawlStrategy(
-            max_depth=settings.max_depth, include_external=settings.include_external, max_pages=settings.max_pages
+            max_depth=settings.max_depth,
+            include_external=settings.include_external,
+            max_pages=settings.max_pages,
         )
     elif settings.strategy == "BestFirst":
+        # Create a scorer only if keywords are provided.
         scorer = KeywordRelevanceScorer(keywords=settings.keywords, weight=0.7) if settings.keywords else None
         return BestFirstCrawlingStrategy(
             max_depth=settings.max_depth,
             include_external=settings.include_external,
             max_pages=settings.max_pages,
-            url_scorer=scorer,
+            url_scorer=scorer,  # Prioritize pages with relevant keywords
         )
     elif settings.strategy == "DFS":
         return DFSDeepCrawlStrategy(
-            max_depth=settings.max_depth, include_external=settings.include_external, max_pages=settings.max_pages
+            max_depth=settings.max_depth,
+            include_external=settings.include_external,
+            max_pages=settings.max_pages,
         )
     else:
         raise ValueError(f"Unknown strategy: {settings.strategy}")
 
 
+################################ Core Crawling Logic ################################
 def update_progress_ui(current: int, total: int, current_url: str):
-    """Streamlit callback to update progress bar & status text."""
-    progress = min(current / total, 1.0)
+    """Callback function to update the Streamlit UI with crawl progress."""
+    progress = min(current / total, 1.0)  # Ensure progress value doesn't exceed 1.0
     st.session_state.progress_bar.progress(progress)
     st.session_state.status_text.text(f"Crawled {current}/{total}: {current_url}")
 
 
-# ─── Step 3: Crawling Logic ─────────────────────────────────────────────────
-async def crawl_website_async(settings: CrawlerSettings, progress_cb: Callable[[int, int, str], None]) -> List[Dict]:
-    """Run the AsyncWebCrawler and stream progress."""
+async def crawl_website_async(
+    settings: CrawlerSettings,
+    progress_cb: Callable[[int, int, str], None],
+) -> List[Dict]:
+    """Asynchronously crawls a website using the specified settings."""
     config = CrawlerRunConfig(
-        deep_crawl_strategy=build_strategy(settings),
-        scraping_strategy=LXMLWebScrapingStrategy(),
+        deep_crawl_strategy=build_strategy(settings),  # Strategy chosen in sidebar
+        scraping_strategy=LXMLWebScrapingStrategy(),  # Fast HTML parsing with lxml
         verbose=settings.verbose,
-        stream=True,
+        stream=True,  # Stream results to the UI
     )
     pages = []
+    # Initialize the crawler instance.
     async with AsyncWebCrawler() as crawler:
+        # Start the crawl and process results as they arrive.
         async for result in await crawler.arun(settings.url, config=config):
             pages.append({"url": result.url, "markdown": result.markdown})
-            progress_cb(len(pages), settings.max_pages, result.url)
+            progress_cb(len(pages), settings.max_pages, result.url)  # Update UI progress
     return pages
 
 
 def run_crawl(settings: CrawlerSettings):
-    """Sync wrapper around our async crawl function."""
+    """Wrapper to run the async crawl function in a synchronous context."""
     return asyncio.run(crawl_website_async(settings, update_progress_ui))
 
 
-# ─── Step 4: Streamlit UI ───────────────────────────────────────────────────
+################################ UI Components ################################
 def render_sidebar() -> CrawlerSettings:
-    """Render controls and return a filled‐out settings object."""
+    """Renders the settings sidebar and returns user inputs as a dataclass."""
     st.sidebar.header("Crawl Settings")
     url = st.sidebar.text_input("Website URL", value="https://python.langchain.com/docs/")
     max_depth = st.sidebar.slider("Max Crawl Depth", 1, 10, 1)
     max_pages = st.sidebar.slider("Max Pages to Crawl", 5, 100, 5)
     strategy = st.sidebar.selectbox("Strategy", ["BFS", "DFS", "BestFirst"])
     include_external = st.sidebar.checkbox("Include External Links")
-    keywords = st.sidebar.text_input("Keywords (comma‑sep)", "")
+    keywords_input = st.sidebar.text_input("Keywords (comma‑sep)", "")
     verbose = st.sidebar.checkbox("Verbose Mode", value=True)
 
     return CrawlerSettings(
@@ -121,43 +127,46 @@ def render_sidebar() -> CrawlerSettings:
         max_pages=max_pages,
         strategy=strategy,
         include_external=include_external,
-        keywords=[k.strip() for k in keywords.split(",") if k.strip()],
+        # Parse comma-separated keywords into a clean list.
+        keywords=[k.strip() for k in keywords_input.split(",") if k.strip()],
         verbose=verbose,
     )
 
 
-def render_download_buttons(st):
-    # combined markdown
-    combined = "\n\n---\n\n".join(f"# {p['url']}\n\n{p['markdown']}" for p in st.session_state.pages)
-    st.download_button("Download All as Markdown", combined, "site.md", "text/markdown")
+def render_download_buttons():
+    """Renders download buttons for combined markdown and a zip of individual files."""
+    # Combine all pages into a single markdown string, separated by horizontal rules.
+    combined_md = "\n\n---\n\n".join(f"# {p['url']}\n\n{p['markdown']}" for p in st.session_state.pages)
+    st.download_button("Download All as Markdown", combined_md, "site.md", "text/markdown")
 
-    # ZIP of individual files
+    # Create a zip archive in memory.
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for i, p in enumerate(st.session_state.pages, 1):
-            name = f"{i:03d}_{extract_title(p['markdown'], p['url'])}.md"
-            zf.writestr(name, p["markdown"])
+        for i, page in enumerate(st.session_state.pages, 1):
+            # Generate a sanitized filename for each page.
+            filename = f"{i:03d}_{extract_title(page['markdown'], page['url'])}.md"
+            zf.writestr(filename, page["markdown"])  # Add the page content to the zip
     st.download_button("Download ZIP of Pages", buf.getvalue(), "pages.zip", "application/zip")
 
 
-def render_preview(st):
-    """Render a preview of the first page."""
-    # Display progress bar and status
+def render_preview():
+    """Renders a preview of the first crawled page in an expander."""
     st.subheader("Preview First Page")
-    # add in expanded markdown
-    with st.expander("# Expand Preview"):
+    with st.expander("Expand Preview"):
+        # Display the first 5000 characters of the first page's content.
         st.write(st.session_state.pages[0]["markdown"][:5000])
 
 
+################################ Main Application ################################
 def main():
-    """Entrypoint for the Streamlit app."""
+    """Main function to run the Streamlit application."""
     st.title("Website Crawler with Crawl4AI")
     st.markdown("Enter a URL, tweak settings, then crawl. Download as MD or ZIP.")
-    # configure page
 
+    # Draw the sidebar and get the current user settings.
     settings = render_sidebar()
 
-    # initialize session state
+    # Initialize session state for pages and UI elements if they don't exist.
     if "pages" not in st.session_state:
         st.session_state.pages = []
     if "progress_bar" not in st.session_state:
@@ -165,20 +174,25 @@ def main():
     if "status_text" not in st.session_state:
         st.session_state.status_text = st.empty()
 
+    # Handle the main "Start Crawling" button action.
     if st.button("Start Crawling", type="primary"):
+        # Validate that a URL has been entered.
         if not settings.url:
             st.error("Please enter a valid URL.")
         else:
+            # Run the crawl and handle potential errors.
             try:
                 pages = run_crawl(settings)
                 st.success(f"Crawled {len(pages)} pages!")
+                # Store results in the session state to persist them across reruns.
                 st.session_state.pages = pages
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"An error occurred during crawling: {e}")
 
+    # Show download and preview buttons only if results exist.
     if st.session_state.pages:
-        render_download_buttons(st)
-        render_preview(st)
+        render_download_buttons()
+        render_preview()
 
     st.markdown("**Note**: `pip install crawl4ai` & run `crawl4ai-setup` before first use.")
 
