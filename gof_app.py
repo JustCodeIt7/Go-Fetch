@@ -17,7 +17,7 @@ from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 
 ################################ Streamlit Page Config ################################
 st.set_page_config(
-    page_title="Crawl4AI Website Crawler",
+    page_title="Go-Fetch - Web Crawler",
     page_icon=":mag_right:",
     layout="wide",  # Use the full-width layout
     initial_sidebar_state="expanded",  # Start with the sidebar open
