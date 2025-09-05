@@ -124,8 +124,8 @@ def render_sidebar() -> CrawlerSettings:
     url = st.sidebar.text_input(
         "Website URL", value="https://python.langchain.com/docs/"
     )
-    max_depth = st.sidebar.slider("Max Crawl Depth", 1, 10, 1)
-    max_pages = st.sidebar.slider("Max Pages to Crawl", 5, 500, 5)
+    max_depth = st.sidebar.slider("Max Crawl Depth", 1, 10, 3)
+    max_pages = st.sidebar.slider("Max Pages to Crawl", 5, 100, 5)
     strategy = st.sidebar.selectbox("Strategy", ["BFS", "DFS", "BestFirst"])
     include_external = st.sidebar.checkbox("Include External Links")
     keywords_input = st.sidebar.text_input("Keywords (comma‑sep)", "")
