@@ -9,6 +9,9 @@ from urllib.parse import urlparse
 from crawl4ai.components.crawler_monitor import CrawlerMonitor
 from crawl4ai.models import CrawlStatus
 
+MAX_URLS = 10
+
+
 ################################ Utility Functions ################################
 
 
@@ -39,7 +42,7 @@ def save_crawled_page(
     error_message=None,
     output_dir="crawled_pages",
 ):
-    """Save the simulated crawled page content to a file."""
+    """Save only markdown-formatted content for the crawled page."""
     # Create the output directory if it doesn't already exist
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -47,61 +50,61 @@ def save_crawled_page(
     filename = sanitize_filename(url)
     filepath = os.path.join(output_dir, filename)
 
-    # Calculate the total processing duration for the task
-    process_time = (end_time - start_time) if end_time and start_time else 0
-
-    # Prepare the markdown content for the output file
-    content = f"""# {url}
-
-**Task ID:** {task_id}
-**Status:** {status.name}
-**Start Time:** {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)) if start_time else "N/A"}
-**End Time:** {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)) if end_time else "N/A"}
-**Processing Time:** {process_time:.2f}s
-**Peak Memory Usage:** {peak_memory:.2f} MB
-**Current Memory Usage:** {memory_usage:.2f} MB
-
----
-
-## Crawl Information
-
-"""
-
-    # Append content based on the final status of the crawl task
+    # Prepare clean markdown content based on crawl status
     if status == CrawlStatus.COMPLETED:
-        content += """### Status: SUCCESS ✓
+        # Save only the markdown content without metadata headers
+        content = """# Example Page
 
-This page was successfully crawled and processed.
+            This is a simulated crawl from the CrawlerMonitor example.
+            In a real implementation, this would contain the actual webpage content
+            extracted as clean markdown, preserving the document structure and readability.
 
-### Simulated Content
+            ## Introduction
 
-This is a simulated crawl from the CrawlerMonitor example.
-In a real implementation, this would contain the actual webpage content,
-extracted text, metadata, and any other relevant information gathered
-during the crawl process.
+            This page was successfully crawled and processed. The content below represents
+            what would typically be extracted from a real webpage.
 
-**Sample Data:**
-- Page Title: Example Page
-- Word Count: 1,234
-- Links Found: 45
-- Images Found: 12
-"""
+            ## Main Content
+
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. This is sample content
+            that demonstrates how the actual webpage text would be preserved in markdown format.
+
+            ### Key Features
+
+            - Clean markdown formatting
+            - Preserved document structure
+            - No technical metadata in content
+            - Easy to read and process
+
+            ### Sample Data
+
+            The page contains typical web content including:
+            - Headings and subheadings
+            - Paragraphs of text
+            - Lists and bullet points
+            - Structured information
+
+            ## Conclusion
+
+            This markdown file represents the extracted content from the webpage,
+            formatted for easy reading and further processing.
+            """
     elif status == CrawlStatus.FAILED:
-        content += f"""### Status: FAILED ✗
+        # For failed crawls, include minimal error information in markdown
+        content = f"""# Crawl Failed
 
-**Error:** {error_message or "Unknown error"}
+        **Error:** {error_message or "Unknown error"}
 
-This page failed to crawl. The error occurred during the crawl process.
-In a production environment, this would include detailed error logs
-and diagnostic information.
-"""
+            The crawl attempt for this page was unsuccessful.
+            """
     else:
-        content += f"""### Status: {status.name}
+        # For other statuses, provide minimal information
+        content = f"""# Crawl Status: {status.name}
 
-This crawl task is in {status.name} state.
-"""
+        This crawl task is currently in {status.name} state.
+        """
 
-    # Write the generated content to the markdown file
+    # Write the clean markdown content to file
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -287,7 +290,7 @@ def update_queue_stats(monitor):
 def main():
     # Initialize the crawler monitor with specific UI configurations
     monitor = CrawlerMonitor(
-        urls_total=20,  # Set the total number of URLs to be processed
+        urls_total=MAX_URLS,  # Set the total number of URLs to be processed
         refresh_rate=0.5,  # Update the UI display twice per second
         enable_ui=True,  # Activate the terminal-based user interface
         # max_width=120,  # Limit the display width to 120 characters
